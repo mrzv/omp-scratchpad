@@ -32,6 +32,8 @@ Inside the notes editor, **Enter** inserts a newline, **Ctrl+Q** (or Ctrl+Enter)
 
 Saving an empty editor clears the current note. Closing with Escape leaves the saved note unchanged. Every explicit save adds a snapshot, even when the text is unchanged; this also lets OMP recover a previous failed disk write. Preview starts hidden and remembers its visibility with the note. It renders Markdown using OMP's native renderer, including headings, emphasis, lists, links, code, and tables. The preview parses at most the first 4,096 UTF-16 code units and displays up to six rendered rows, with an ellipsis when clipped; the full note remains editable and pasteable. Headings use normal terminal text size to keep the widget bounded. Rendered output retains styling and hyperlinks but filters other terminal commands, including controls assembled during HTML/entity decoding. Paste does not submit a prompt; the notes enter model context only if you subsequently send that prompt.
 
+The preview is enclosed in a muted, rounded box with a one-column inset, visually separating personal notes from the prompt. The six-row content limit is unchanged; the border adds two rows. At extremely narrow widths, padding or the border is omitted rather than overflowing the terminal.
+
 ## Persistence and branches
 
 Each update appends an opaque `custom` state entry to the current session branch. Opening a session or navigating its tree restores the last scratchpad snapshot on that branch. New sessions start empty; forks inherit snapshots present at their branch point, then diverge. Navigating before a note's snapshot restores the earlier state, not the latest note from another branch.

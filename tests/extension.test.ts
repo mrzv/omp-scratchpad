@@ -175,7 +175,7 @@ describe("personal scratchpad", () => {
 		await f.run("preview");
 		for (const width of [20, 80]) {
 			const rows = f.preview(width)!;
-			expect(rows.length).toBeLessThanOrEqual(9);
+			expect(rows.length).toBeLessThanOrEqual(11);
 			expect(rows.join("\n")).not.toContain("HIDDEN_TAIL");
 			expect(rows.join("\n")).toContain("…");
 		}
@@ -208,7 +208,7 @@ describe("personal scratchpad", () => {
 		f.response = "A&#27;[2JB&#27;[2JC";
 		await f.run();
 		await f.run("preview");
-		for (const width of [20, 80]) {
+		for (const width of [1, 2, 3, 4, 5, 20, 80]) {
 			expect(f.preview(width)!.every(row => visibleWidth(row) <= width)).toBe(true);
 		}
 	});

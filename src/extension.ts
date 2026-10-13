@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
-import { getMarkdownTheme, Markdown, theme as activeTheme, truncateToWidth } from "@oh-my-pi/pi-tui";
+import { Box, getMarkdownTheme, Markdown, theme as activeTheme, truncateToWidth } from "@oh-my-pi/pi-tui";
 
 const ENTRY_TYPE = "omp-scratchpad.state.v1";
 const WIDGET_KEY = "omp-scratchpad.preview";
@@ -37,8 +37,12 @@ function renderPreview(ctx: ExtensionContext, state: Scratchpad): void {
 	const source = state.text.slice(0, sourceLimit).replace(/\r\n?/g, "\n")
 		.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, " ");
 	ctx.ui.setWidget(WIDGET_KEY, () => {
-		let markdown = new Markdown(source || "(empty)", 1, 0, getMarkdownTheme());
-		return {
+		let markdown = new Markdown(source || "(empty)", 0, 0, getMarkdownTheme());
+		const box = new Box(1, 0, undefined, {
+			get chars() { return activeTheme.boxRound; },
+			color: text => activeTheme.fg("muted", text),
+		}).setIgnoreTight(true);
+		box.addChild({
 			render(width: number) {
 				const lines = markdown.render(width);
 				return [
@@ -62,8 +66,16 @@ function renderPreview(ctx: ExtensionContext, state: Scratchpad): void {
 				];
 			},
 			invalidate() {
-				markdown = new Markdown(source || "(empty)", 1, 0, getMarkdownTheme());
+				markdown = new Markdown(source || "(empty)", 0, 0, getMarkdownTheme());
 			},
+		});
+		return {
+			render(width: number) {
+				// Drop padding when the terminal cannot fit a border plus one content column.
+				box.setPaddingX(width < 5 ? 0 : 1);
+				return box.render(width);
+			},
+			invalidate() { box.invalidate(); },
 		};
 	}, { placement: "aboveEditor" });
 }
