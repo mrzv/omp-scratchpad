@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
-import { Box, getMarkdownTheme, Markdown, theme as activeTheme, truncateToWidth } from "@oh-my-pi/pi-tui";
+import { Box, getMarkdownTheme, lexDocument, Markdown, theme as activeTheme, truncateToWidth } from "@oh-my-pi/pi-tui";
+import type { Token } from "@oh-my-pi/pi-utils/marked";
 
 const ENTRY_TYPE = "omp-scratchpad.state.v1";
 const WIDGET_KEY = "omp-scratchpad.preview";
@@ -24,6 +25,50 @@ function readScratchpad(ctx: ExtensionContext): Scratchpad {
 	return { text: "", preview: false };
 }
 
+function previewTaskMarkers(source: string): string {
+	if (!source.includes("[")) return source;
+	// Match the lexer's tab normalization so token.raw remains searchable.
+	source = source.replace(/\t/g, "    ");
+	// Rewrite parsed containers, not source-line offsets: the lexer omits some
+	// blank lines and deindents nested lists. Code/HTML tokens stay opaque.
+	const rewrite = (text: string, tokens: readonly Token[]): string => {
+		let result = "";
+		let cursor = 0;
+		for (const token of tokens) {
+			let replacement = token.raw;
+			if (token.type === "list") {
+				replacement = rewrite(token.raw, token.items);
+			} else if (token.type === "list_item") {
+				const children = token.tokens?.filter(child => child.type !== "checkbox") ?? [];
+				let body = rewrite(token.text, children);
+				if (token.task) {
+					const checkbox = token.checked ? "☑" : "☐";
+					// A fence/heading/quote must remain at a block boundary.
+					body = children[0]?.type === "text" || children[0]?.type === "paragraph"
+						? `${checkbox} ${body}` : `${checkbox}\n\n${body}`;
+				}
+				if (body !== token.text) {
+					const marker = /^([ ]*)([-+*]|\d+[.)])(?:[ \t]+|(?=\n|$))/.exec(token.raw)!;
+					const prefix = `${marker[1]}${marker[2]} `;
+					const indent = " ".repeat(prefix.length);
+					replacement = prefix + body.replace(/\n/g, `\n${indent}`) + (token.raw.endsWith("\n") ? "\n" : "");
+				}
+			} else if (token.type === "blockquote") {
+				const body = rewrite(token.text, token.tokens ?? []);
+				if (body !== token.text) {
+					replacement = body.split("\n").map(line => `> ${line}`).join("\n")
+						+ (token.raw.endsWith("\n") && !body.endsWith("\n") ? "\n" : "");
+				}
+			}
+			const start = text.indexOf(token.raw, cursor);
+			result += text.slice(cursor, start) + replacement;
+			cursor = start + token.raw.length;
+		}
+		return result + text.slice(cursor);
+	};
+	return rewrite(source, lexDocument(source));
+}
+
 function renderPreview(ctx: ExtensionContext, state: Scratchpad): void {
 	if (!ctx.hasUI) return;
 	if (!state.preview) {
@@ -34,8 +79,8 @@ function renderPreview(ctx: ExtensionContext, state: Scratchpad): void {
 	// wrapping, tables, and fenced blocks can expand at narrow terminal widths.
 	const sourceLimit = 4096;
 	const rowLimit = 6;
-	const source = state.text.slice(0, sourceLimit).replace(/\r\n?/g, "\n")
-		.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, " ");
+	const source = previewTaskMarkers(state.text.slice(0, sourceLimit).replace(/\r\n?/g, "\n")
+		.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, " "));
 	ctx.ui.setWidget(WIDGET_KEY, () => {
 		let markdown = new Markdown(source || "(empty)", 0, 0, getMarkdownTheme());
 		const box = new Box(1, 0, undefined, {

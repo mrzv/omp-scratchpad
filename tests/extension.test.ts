@@ -168,6 +168,58 @@ describe("personal scratchpad", () => {
 		expect(f.prefill).toBe("");
 	});
 
+	test("task checkboxes render in list contexts without changing the saved Markdown", async () => {
+		const f = await fixture();
+		for (const note of [
+			"- [ ] Pending\n- [x] Done",
+			"\n- [ ] Pending\n- [x] Done",
+			"- - [ ] Pending\n- - [x] Done",
+			"- [ ] Pending\n-\t[x] Done",
+			"```md\n- [x] Done\n```\n- [ ] Pending\n- [x] Done",
+			"* [ ] Pending\n+ [X] Done",
+			"1. [ ] Pending\n2. [x] Done",
+			"> - [ ] Pending\n> - [x] Done",
+			"- Parent\n  - [ ] Pending\n  - [x] Done",
+			"-\n  - [ ] Pending\n  - [x] Done",
+			"1.\n   - [ ] Pending\n   - [x] Done",
+			"- [ ] Pending\n\n- [x] Done",
+			"[ref]: https://example.com\n\n- [ ] Pending\n- [x] Done",
+		]) {
+			f.response = note;
+			await f.run();
+			if (!f.preview()) await f.run("preview");
+			const visible = Bun.stripANSI(f.preview()!.join("\n"));
+			expect(visible).toContain("☐ Pending");
+			expect(visible).toContain("☑ Done");
+			f.response = undefined;
+			await f.run();
+			expect(f.prefill).toBe(note);
+		}
+	});
+
+	test("checkbox-like text in code and HTML is not converted to task markers", async () => {
+		const f = await fixture();
+		for (const note of [
+			"```md\n- [ ] literal\n```\n\n- [x] Real",
+			"    - [ ] literal\n\n- [x] Real",
+			"> ```md\n> - [ ] literal\n> ```\n>\n> - [x] Real",
+			"<pre>\n- [ ] literal\n</pre>\n\n- [x] Real",
+			"- `- [ ] literal`\n- [x] Real",
+		]) {
+			f.response = note;
+			await f.run();
+			if (!f.preview()) await f.run("preview");
+			const visible = Bun.stripANSI(f.preview()!.join("\n"));
+			expect(visible).not.toContain("☐");
+			expect(visible).toContain("☑ Real");
+		}
+		f.response = "- [ ] ```md\n  - [ ] literal\n  ```";
+		await f.run();
+		const fenced = Bun.stripANSI(f.preview()!.join("\n"));
+		expect(fenced).toContain("☐");
+		expect(fenced).toContain("[ ] literal");
+	});
+
 	test("Markdown preview stays bounded when long content wraps at narrow widths", async () => {
 		const f = await fixture();
 		f.response = `# Plan\n\n${"Compare approaches carefully. ".repeat(200)}\n\nHIDDEN_TAIL`;
