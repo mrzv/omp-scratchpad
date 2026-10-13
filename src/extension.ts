@@ -62,7 +62,7 @@ function renderPreview(ctx: ExtensionContext, state: Scratchpad): void {
 						},
 					), width)),
 					...(lines.length > rowLimit || state.text.length > sourceLimit ? [activeTheme.fg("muted", "…")] : []),
-					truncateToWidth(activeTheme.fg("muted", "Alt+S to edit · /scratchpad preview to hide"), width),
+					truncateToWidth(activeTheme.fg("muted", "Ctrl+Alt+S to edit · Alt+S to hide"), width),
 				];
 			},
 			invalidate() {
@@ -137,6 +137,12 @@ export default function scratchpad(pi: ExtensionAPI): void {
 		}
 	};
 
+	const togglePreview = async (ctx: ExtensionContext): Promise<void> => {
+		if (!ctx.hasUI) return;
+		const state = readScratchpad(ctx);
+		await persist(ctx, { ...state, preview: !state.preview });
+	};
+
 	const subcommands = [
 		{ value: "edit", label: "edit", description: "Edit personal notes" },
 		{ value: "preview", label: "preview", description: "Toggle the boxed preview" },
@@ -152,11 +158,9 @@ export default function scratchpad(pi: ExtensionAPI): void {
 				case "edit":
 					await edit(ctx);
 					break;
-				case "preview": {
-					const state = readScratchpad(ctx);
-					await persist(ctx, { ...state, preview: !state.preview });
+				case "preview":
+					await togglePreview(ctx);
 					break;
-				}
 				case "paste": {
 					if (!ctx.ui.supportsEditor) {
 						ctx.ui.notify("This UI does not support pasting into a prompt composer.", "warning");
@@ -176,6 +180,10 @@ export default function scratchpad(pi: ExtensionAPI): void {
 		},
 	});
 	pi.registerShortcut("alt+s", {
+		description: "Toggle the scratchpad preview",
+		handler: togglePreview,
+	});
+	pi.registerShortcut("ctrl+alt+s", {
 		description: "Open the personal scratchpad",
 		handler: edit,
 	});

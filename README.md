@@ -24,13 +24,13 @@ Restart omp after changing extension configuration. Runtime loading needs no `np
 | Action | Command / key |
 | --- | --- |
 | Open the separate multiline notes editor | `/scratchpad` or `/scratchpad edit` |
-| Open it without disturbing the prompt draft | **Alt+S** (Option+S on macOS, with Option configured to send Alt) |
-| Show/hide a small preview above the prompt | `/scratchpad preview` |
+| Open it without disturbing the prompt draft | **Ctrl+Alt+S** (Ctrl+Option+S on macOS, with Option configured to send Alt) |
+| Show/hide a small preview above the prompt | `/scratchpad preview` or **Alt+S** |
 | Explicitly insert the notes into the prompt composer | `/scratchpad paste` |
 
 Type `/scratchpad ` to see `edit`, `preview`, and `paste` completions with descriptions. Typing a prefix filters the menu (`/scratchpad pr` suggests `preview`); press **Tab** to insert the selected subcommand, then **Enter** to run it.
 
-Inside the notes editor, **Enter** inserts a newline, **Ctrl+Q** (or Ctrl+Enter) saves, and **Escape** cancels. These are omp's default bindings; the editor displays the effective bindings. Ctrl+G opens the configured external editor. Alt+S and Ctrl+Alt+S have no built-in binding in the tested OMP version; this extension uses the simpler Alt+S, replacing its original Ctrl+Alt+N shortcut. On macOS, configure the terminal to send Option as Alt/Meta instead of entering `ß`. If another extension claims Alt+S or your terminal does not transmit it, use `/scratchpad`.
+Inside the notes editor, **Enter** inserts a newline, **Ctrl+Q** (or Ctrl+Enter) saves, and **Escape** cancels. These are omp's default bindings; the editor displays the effective bindings. Ctrl+G opens the configured external editor. Alt+S toggles the preview; Ctrl+Alt+S opens the editor. Neither has a built-in binding in the tested OMP version. On macOS, configure the terminal to send Option as Alt/Meta instead of entering `ß`. If another extension claims either shortcut or your terminal does not transmit it, use `/scratchpad preview` to toggle or `/scratchpad` to edit.
 
 Saving an empty editor clears the current note. Closing with Escape leaves the saved note unchanged. Every explicit save adds a snapshot, even when the text is unchanged; this also lets OMP recover a previous failed disk write. Preview starts hidden and remembers its visibility with the note. It renders Markdown using OMP's native renderer, including headings, emphasis, lists, links, code, and tables. The preview parses at most the first 4,096 UTF-16 code units and displays up to six rendered rows, with an ellipsis when clipped; the full note remains editable and pasteable. Headings use normal terminal text size to keep the widget bounded. Rendered output retains styling and hyperlinks but filters other terminal commands, including controls assembled during HTML/entity decoding. Paste does not submit a prompt; the notes enter model context only if you subsequently send that prompt.
 
