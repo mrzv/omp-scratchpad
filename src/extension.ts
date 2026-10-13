@@ -137,8 +137,14 @@ export default function scratchpad(pi: ExtensionAPI): void {
 		}
 	};
 
+	const subcommands = [
+		{ value: "edit", label: "edit", description: "Edit personal notes" },
+		{ value: "preview", label: "preview", description: "Toggle the boxed preview" },
+		{ value: "paste", label: "paste", description: "Insert notes into the prompt" },
+	];
 	pi.registerCommand("scratchpad", {
 		description: "Edit personal session notes; preview toggles the widget, paste explicitly inserts notes into the prompt",
+		getArgumentCompletions: prefix => subcommands.filter(item => item.value.startsWith(prefix)),
 		handler: async (args, ctx) => {
 			if (!ctx.hasUI) throw new Error("Scratchpad requires an interactive UI.");
 			switch (args.trim()) {
