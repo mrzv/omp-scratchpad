@@ -17,20 +17,20 @@ extensions:
   - .../omp-scratchpad
 ```
 
-Restart omp after changing extension configuration. Runtime loading needs no `npm install`: the extension imports only host-provided TypeScript types.
+Restart omp after changing extension configuration. Runtime loading needs no `npm install`: the extension uses host-provided types and native TUI components.
 
 ## Use
 
 | Action | Command / key |
 | --- | --- |
 | Open the separate multiline notes editor | `/scratchpad` or `/scratchpad edit` |
-| Open it without disturbing the prompt draft | **Ctrl+Alt+N** (Ctrl+Option+N on macOS) |
+| Open it without disturbing the prompt draft | **Alt+S** (Option+S on macOS, with Option configured to send Alt) |
 | Show/hide a small preview above the prompt | `/scratchpad preview` |
 | Explicitly insert the notes into the prompt composer | `/scratchpad paste` |
 
-Inside the notes editor, **Enter** inserts a newline, **Ctrl+Q** (or Ctrl+Enter) saves, and **Escape** cancels. These are omp's default bindings; the editor displays the effective bindings. Ctrl+G opens the configured external editor. If your terminal does not transmit the shortcut, use `/scratchpad`.
+Inside the notes editor, **Enter** inserts a newline, **Ctrl+Q** (or Ctrl+Enter) saves, and **Escape** cancels. These are omp's default bindings; the editor displays the effective bindings. Ctrl+G opens the configured external editor. Alt+S and Ctrl+Alt+S have no built-in binding in the tested OMP version; this extension uses the simpler Alt+S, replacing its original Ctrl+Alt+N shortcut. On macOS, configure the terminal to send Option as Alt/Meta instead of entering `ß`. If another extension claims Alt+S or your terminal does not transmit it, use `/scratchpad`.
 
-Saving an empty editor clears the current note. Closing with Escape leaves the saved note unchanged. Every explicit save adds a snapshot, even when the text is unchanged; this also lets OMP recover a previous failed disk write. Preview starts hidden, shows up to four bounded note lines, and remembers its visibility with the note. Paste does not submit a prompt; the notes enter model context only if you subsequently send that prompt.
+Saving an empty editor clears the current note. Closing with Escape leaves the saved note unchanged. Every explicit save adds a snapshot, even when the text is unchanged; this also lets OMP recover a previous failed disk write. Preview starts hidden and remembers its visibility with the note. It renders Markdown using OMP's native renderer, including headings, emphasis, lists, links, code, and tables. The preview parses at most the first 4,096 UTF-16 code units and displays up to six rendered rows, with an ellipsis when clipped; the full note remains editable and pasteable. Headings use normal terminal text size to keep the widget bounded. Rendered output retains styling and hyperlinks but filters other terminal commands, including controls assembled during HTML/entity decoding. Paste does not submit a prompt; the notes enter model context only if you subsequently send that prompt.
 
 ## Persistence and branches
 
@@ -50,7 +50,7 @@ This is **context exclusion**, not encryption or access control:
 - The notes editor and preview use omp's normal UI APIs; connected collaboration clients may see them. Do not use this extension to hide secrets from collaborators.
 - Explicit paste deliberately moves notes into the ordinary prompt composer.
 
-The primary interface is the interactive terminal. Non-UI modes are not supported. Preview is plain text, not a Markdown renderer or permanent sidebar.
+The primary interface is the interactive terminal. Non-UI modes are not supported. The Markdown preview is a bounded widget above the prompt, not a permanent sidebar.
 
 ## Development
 
@@ -59,4 +59,4 @@ npm install --ignore-scripts
 npm run check
 ```
 
-Behavioral regressions use the real OMP `SessionManager`: notes-only persistence/reopen, empty-note clearing, canceled edits, branch inheritance/divergence, new-session isolation, dialogs spanning session/tree switches, and exclusion from reconstructed model messages.
+Behavioral regressions use the real OMP `SessionManager`: notes-only persistence/reopen, disk-failure recovery, empty-note clearing, canceled edits, branch inheritance/divergence, new-session isolation, dialogs spanning session/tree switches, and exclusion from reconstructed model messages. Native-renderer regressions cover bounded output when long Markdown wraps at narrow widths, entity-encoded terminal controls, and theme changes.

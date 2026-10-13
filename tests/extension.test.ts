@@ -2,7 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { SessionManager, type ExtensionAPI, type ExtensionCommandContext } from "@oh-my-pi/pi-coding-agent";
+import { SessionManager, type ExtensionAPI, type ExtensionCommandContext, type ExtensionWidgetContent } from "@oh-my-pi/pi-coding-agent";
+import { getMarkdownTheme, getThemeByName, setThemeInstance, theme, visibleWidth, type Component, type TUI } from "@oh-my-pi/pi-tui";
 import scratchpad from "../src/extension.ts";
 
 type Handler = (event: unknown, ctx: ExtensionCommandContext) => void | Promise<void>;
@@ -13,13 +14,14 @@ afterEach(async () => {
 });
 
 async function fixture(durable = false) {
+	getMarkdownTheme();
 	const directory = await mkdtemp(join(tmpdir(), "omp-scratchpad-test-"));
 	const managers = [durable ? SessionManager.create(directory, directory) : SessionManager.inMemory(directory)];
 	let manager = managers[0]!;
 	let response: string | undefined | Promise<string | undefined>;
 	let prefill = "";
 	let prompt = "existing draft: ";
-	const widgets = new Map<string, string[] | undefined>();
+	const widgets = new Map<string, Component | string[] | undefined>();
 	const notices: string[] = [];
 	const events = new Map<string, Handler>();
 	let command: Command;
@@ -30,7 +32,9 @@ async function fixture(durable = false) {
 		ui: {
 			supportsEditor: true,
 			editor: async (_title: string, value: string) => { prefill = value; return await response; },
-			setWidget: (key: string, content: string[] | undefined) => { widgets.set(key, content); },
+			setWidget: (key: string, content: ExtensionWidgetContent) => {
+				widgets.set(key, typeof content === "function" ? content({} as TUI, theme) : content);
+			},
 			notify: (message: string) => { notices.push(message); },
 			pasteToEditor: (text: string) => { prompt += text; },
 		},
@@ -53,7 +57,14 @@ async function fixture(durable = false) {
 		get manager() { return manager; },
 		get prefill() { return prefill; },
 		get prompt() { return prompt; },
-		get preview() { return widgets.get("omp-scratchpad.preview"); },
+		preview(width = 80) {
+			const content = widgets.get("omp-scratchpad.preview");
+			return Array.isArray(content) ? content : content?.render(width);
+		},
+		invalidatePreview() {
+			const content = widgets.get("omp-scratchpad.preview");
+			if (content && !Array.isArray(content)) content.invalidate?.();
+		},
 		set response(value: typeof response) { response = value; },
 		run: (args = "") => command(args, ctx),
 		emit,
@@ -133,13 +144,13 @@ describe("personal scratchpad", () => {
 		const left = f.manager.getLeafId()!;
 		f.manager.branch(root);
 		await f.emit("session_tree");
-		expect(f.preview).toContain("root note");
+		expect(f.preview()?.join("\n")).toContain("root note");
 		f.response = "right note";
 		await f.run();
-		expect(f.preview).toContain("right note");
+		expect(f.preview()?.join("\n")).toContain("right note");
 		f.manager.branch(left);
 		await f.emit("session_tree");
-		expect(f.preview).toContain("left note");
+		expect(f.preview()?.join("\n")).toContain("left note");
 		f.response = undefined;
 		await f.run();
 		expect(f.prefill).toBe("left note");
@@ -151,10 +162,71 @@ describe("personal scratchpad", () => {
 		await f.run();
 		await f.run("preview");
 		await f.switchTo();
-		expect(f.preview).toBeUndefined();
+		expect(f.preview()).toBeUndefined();
 		f.response = undefined;
 		await f.run();
 		expect(f.prefill).toBe("");
+	});
+
+	test("Markdown preview stays bounded when long content wraps at narrow widths", async () => {
+		const f = await fixture();
+		f.response = `# Plan\n\n${"Compare approaches carefully. ".repeat(200)}\n\nHIDDEN_TAIL`;
+		await f.run();
+		await f.run("preview");
+		for (const width of [20, 80]) {
+			const rows = f.preview(width)!;
+			expect(rows.length).toBeLessThanOrEqual(9);
+			expect(rows.join("\n")).not.toContain("HIDDEN_TAIL");
+			expect(rows.join("\n")).toContain("…");
+		}
+	});
+
+	test("Markdown entities cannot introduce terminal controls into the preview", async () => {
+		const f = await fixture();
+		for (const note of [
+			"&#27;[2J",
+			"&#2&#0;7;[2J",
+			"<p>&#2<!--x-->7;[2J</p>",
+			"prefix <code>&\\#27;[2J</code>",
+			"prefix <code>&**#27**;[2J</code>",
+			"<span>&#x1b;]52;c;SECRET&#7;</span>",
+			"[&#x9b;2J](https://example.com)",
+			"&amp;#27;[2J",
+			"&#38;#27;[2J",
+			"&#38;&#35;27;[2J",
+			"&#x26;&#x23;&#x32;&#x37;;[2J",
+		]) {
+			f.response = note;
+			await f.run();
+			if (!f.preview()) await f.run("preview");
+			expect(f.preview()!.join("\n")).not.toMatch(/\x1b\[2J|\x1b\]52;|\x9b/);
+		}
+	});
+
+	test("filtered terminal controls cannot widen preview rows beyond the widget width", async () => {
+		const f = await fixture();
+		f.response = "A&#27;[2JB&#27;[2JC";
+		await f.run();
+		await f.run("preview");
+		for (const width of [20, 80]) {
+			expect(f.preview(width)!.every(row => visibleWidth(row) <= width)).toBe(true);
+		}
+	});
+
+	test("preview invalidation follows theme color changes", async () => {
+		const f = await fixture();
+		f.response = "> A quoted note";
+		await f.run();
+		await f.run("preview");
+		const previousTheme = theme;
+		try {
+			setThemeInstance((await getThemeByName("light"))!);
+			f.invalidatePreview();
+			const header = f.preview()![0]!;
+			expect(header).toBe(theme.fg("muted", Bun.stripANSI(header)));
+		} finally {
+			setThemeInstance(previousTheme);
+		}
 	});
 
 	for (const transition of ["session_switch", "session_tree"] as const) {

@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
+import { getMarkdownTheme, Markdown, theme as activeTheme, truncateToWidth } from "@oh-my-pi/pi-tui";
 
 const ENTRY_TYPE = "omp-scratchpad.state.v1";
 const WIDGET_KEY = "omp-scratchpad.preview";
@@ -29,17 +30,42 @@ function renderPreview(ctx: ExtensionContext, state: Scratchpad): void {
 		ctx.ui.setWidget(WIDGET_KEY, undefined);
 		return;
 	}
-	// Bound both line count and width; never interpret note text as terminal escapes.
-	const lines = state.text.replace(/\r\n?/g, "\n")
-		.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "")
-		.split("\n", 5);
-	const content = lines.slice(0, 4).map(line => line.length > 100 ? `${line.slice(0, 100)}…` : line);
-	ctx.ui.setWidget(WIDGET_KEY, [
-		"Scratchpad · personal notes (not model context)",
-		...(state.text ? content : ["(empty)"]),
-		...(lines.length > 4 ? ["…"] : []),
-		"/scratchpad to edit · /scratchpad preview to hide",
-	], { placement: "aboveEditor" });
+	// Bound parser input and rendered rows, not Markdown source lines:
+	// wrapping, tables, and fenced blocks can expand at narrow terminal widths.
+	const sourceLimit = 4096;
+	const rowLimit = 6;
+	const source = state.text.slice(0, sourceLimit).replace(/\r\n?/g, "\n")
+		.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, " ");
+	ctx.ui.setWidget(WIDGET_KEY, () => {
+		let markdown = new Markdown(source || "(empty)", 1, 0, getMarkdownTheme());
+		return {
+			render(width: number) {
+				const lines = markdown.render(width);
+				return [
+					truncateToWidth(activeTheme.fg("muted", "Scratchpad · personal notes (not model context)"), width),
+					// Entity decoding and inline HTML can introduce controls after parsing.
+					// Keep terminal styling/links, not arbitrary terminal commands.
+					...lines.slice(0, rowLimit).map(line => truncateToWidth(line.replace(
+						/\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x00-\x06\x08-\x1f\x7f-\x9f]*(?:\x07|\x1b\\)|[ -/]*[0-~])?|[\x00-\x1f\x7f-\x9f]/g,
+						sequence => {
+							if (/^\x1b\[[0-9;:]*m$/.test(sequence) || sequence.startsWith("\x1b]8;")) return sequence;
+							// Show Kitty-sized heading text at normal size in the bounded widget.
+							if (sequence.startsWith("\x1b]66;")) {
+								const start = sequence.indexOf(";", 5) + 1;
+								return start > 0 ? sequence.slice(start, sequence.endsWith("\x07") ? -1 : -2) : " ";
+							}
+							return " ";
+						},
+					), width)),
+					...(lines.length > rowLimit || state.text.length > sourceLimit ? [activeTheme.fg("muted", "…")] : []),
+					truncateToWidth(activeTheme.fg("muted", "Alt+S to edit · /scratchpad preview to hide"), width),
+				];
+			},
+			invalidate() {
+				markdown = new Markdown(source || "(empty)", 1, 0, getMarkdownTheme());
+			},
+		};
+	}, { placement: "aboveEditor" });
 }
 
 export default function scratchpad(pi: ExtensionAPI): void {
@@ -131,7 +157,7 @@ export default function scratchpad(pi: ExtensionAPI): void {
 			}
 		},
 	});
-	pi.registerShortcut("ctrl+alt+n", {
+	pi.registerShortcut("alt+s", {
 		description: "Open the personal scratchpad",
 		handler: edit,
 	});
