@@ -25,18 +25,18 @@ Restart omp after changing extension configuration. Runtime loading needs no `np
 | --- | --- |
 | Open the separate multiline notes editor | `/scratchpad` or `/scratchpad edit` |
 | Open it without disturbing the prompt draft | **Ctrl+Alt+S** (Ctrl+Option+S on macOS, with Option configured to send Alt) |
-| Show/hide a small preview above the prompt | `/scratchpad preview` or **Alt+S** |
+| Show/hide the preview above the prompt | `/scratchpad preview` or **Alt+S** |
 | Explicitly insert the notes into the prompt composer | `/scratchpad paste` |
 
 Type `/scratchpad ` to see `edit`, `preview`, and `paste` completions with descriptions. Typing a prefix filters the menu (`/scratchpad pr` suggests `preview`); press **Tab** to insert the selected subcommand, then **Enter** to run it.
 
 Inside the notes editor, **Enter** inserts a newline, **Ctrl+Q** (or Ctrl+Enter) saves, and **Escape** cancels. These are omp's default bindings; the editor displays the effective bindings. Ctrl+G opens the configured external editor. Alt+S toggles the preview; Ctrl+Alt+S opens the editor. Neither has a built-in binding in the tested OMP version. On macOS, configure the terminal to send Option as Alt/Meta instead of entering `ß`. If another extension claims either shortcut or your terminal does not transmit it, use `/scratchpad preview` to toggle or `/scratchpad` to edit.
 
-Saving an empty editor clears the current note. Closing with Escape leaves the saved note unchanged. Every explicit save adds a snapshot, even when the text is unchanged; this also lets OMP recover a previous failed disk write. Preview starts hidden and remembers its visibility with the note. It renders Markdown using OMP's native renderer, including headings, emphasis, lists, links, code, and tables. The preview parses at most the first 4,096 UTF-16 code units and displays up to six rendered rows, with an ellipsis when clipped; the full note remains editable and pasteable. Headings use normal terminal text size to keep the widget bounded. Rendered output retains styling and hyperlinks but filters other terminal commands, including controls assembled during HTML/entity decoding. Paste does not submit a prompt; the notes enter model context only if you subsequently send that prompt.
+Saving an empty editor clears the current note. Closing with Escape leaves the saved note unchanged. Every explicit save adds a snapshot, even when the text is unchanged; this also lets OMP recover a previous failed disk write. Preview starts hidden and remembers its visibility with the note. It renders the entire note as Markdown using OMP's native renderer, including headings, emphasis, lists, links, code, and tables, without a source-length or row-count cap. Long notes can extend beyond the visible terminal viewport; Alt+S hides the preview again. Headings use normal terminal text size inside the box. Rendered output retains styling and hyperlinks but filters other terminal commands, including controls assembled during HTML/entity decoding. Paste does not submit a prompt; the notes enter model context only if you subsequently send that prompt.
 
 Markdown task lists (`- [ ]` and `- [x]`) render as unchecked **☐** and checked **☑** boxes, including nested, ordered, and quoted tasks. This is a display-only adaptation for OMP's native renderer; saved notes and explicit paste retain the original Markdown. Checkbox-like text in code or HTML is not converted, and preview boxes are not interactive controls.
 
-The preview is enclosed in a muted, rounded box with a one-column inset, visually separating personal notes from the prompt. The six-row content limit is unchanged; the border adds two rows. At extremely narrow widths, padding or the border is omitted rather than overflowing the terminal.
+The preview is enclosed in a muted, rounded box with a one-column inset, visually separating personal notes from the prompt. Content wraps to the terminal width; the border adds two rows. At extremely narrow widths, padding or the border is omitted rather than overflowing the terminal.
 
 ## Persistence and branches
 
@@ -56,7 +56,7 @@ This is **context exclusion**, not encryption or access control:
 - The notes editor and preview use omp's normal UI APIs; connected collaboration clients may see them. Do not use this extension to hide secrets from collaborators.
 - Explicit paste deliberately moves notes into the ordinary prompt composer.
 
-The primary interface is the interactive terminal. Non-UI modes are not supported. The Markdown preview is a bounded widget above the prompt, not a permanent sidebar.
+The primary interface is the interactive terminal. Non-UI modes are not supported. The Markdown preview is a widget above the prompt, not a permanent sidebar.
 
 ## Development
 
@@ -65,4 +65,4 @@ npm install --ignore-scripts
 npm run check
 ```
 
-Behavioral regressions use the real OMP `SessionManager`: notes-only persistence/reopen, disk-failure recovery, empty-note clearing, canceled edits, branch inheritance/divergence, new-session isolation, dialogs spanning session/tree switches, and exclusion from reconstructed model messages. Native-renderer regressions cover bounded output when long Markdown wraps at narrow widths, checked and unchecked task lists, literal checkbox text in code and HTML, entity-encoded terminal controls, and theme changes.
+Behavioral regressions use the real OMP `SessionManager`: notes-only persistence/reopen, disk-failure recovery, empty-note clearing, canceled edits, branch inheritance/divergence, new-session isolation, dialogs spanning session/tree switches, and exclusion from reconstructed model messages. Native-renderer regressions cover full-note output beyond the former row and source limits, width-safe wrapping, checked and unchecked task lists, literal checkbox text in code and HTML, entity-encoded terminal controls, and theme changes.

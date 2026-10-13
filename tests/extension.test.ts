@@ -220,16 +220,15 @@ describe("personal scratchpad", () => {
 		expect(fenced).toContain("[ ] literal");
 	});
 
-	test("Markdown preview stays bounded when long content wraps at narrow widths", async () => {
+	test("full Markdown preview includes content beyond the former row and source limits", async () => {
 		const f = await fixture();
-		f.response = `# Plan\n\n${"Compare approaches carefully. ".repeat(200)}\n\nHIDDEN_TAIL`;
+		f.response = `# Plan\n\n${"Compare approaches carefully. ".repeat(200)}\n\n- [ ] Final task\n\nEND_OF_NOTE`;
 		await f.run();
 		await f.run("preview");
 		for (const width of [20, 80]) {
-			const rows = f.preview(width)!;
-			expect(rows.length).toBeLessThanOrEqual(11);
-			expect(rows.join("\n")).not.toContain("HIDDEN_TAIL");
-			expect(rows.join("\n")).toContain("…");
+			const visible = Bun.stripANSI(f.preview(width)!.join("\n"));
+			expect(visible).toContain("☐ Final task");
+			expect(visible).toContain("END_OF_NOTE");
 		}
 	});
 
